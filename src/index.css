@@ -1,74 +1,276 @@
+/* ========================================
+   Neovate Settings - Nordic Minimalist Design System
+   
+   设计理念：
+   - 极简北欧美学：大量留白、柔和色调、精致排版
+   - 自适应主题：支持 light/dark 模式自动切换
+   - 高级感：独特字体、微妙动效、细腻纹理
+   ======================================== */
+
+/* 为什么：引入 Google Fonts 的北欧风格字体组合 */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ----------------------------------------
+   CSS 变量 - 自适应主题系统
+   ---------------------------------------- */
+
 :root {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  --color-bg: #f9fafb;
-  --color-surface: #ffffff;
-  --color-text-primary: #111827;
-  --color-text-secondary: #4b5563;
-  --color-text-tertiary: #9ca3af;
+  /* 为什么：北欧设计的核心是温暖的中性色调 */
   
-  --color-primary: #0f172a;
-  --color-primary-hover: #1e293b;
-  --color-primary-text: #ffffff;
+  /* 排版 */
+  --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
   
-  --color-border: #e5e7eb;
-  --color-border-hover: #d1d5db;
+  /* 间距系统 - 8px 基准 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
   
-  --color-success: #10b981;
-  --color-danger: #ef4444;
-  --color-warning: #f59e0b;
-  
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-
+  /* 圆角 */
   --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  
+  /* 过渡 */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* 动画缓动 */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+/* ----------------------------------------
+   浅色主题 - 温暖象牙白
+   ---------------------------------------- */
+
+:root,
+[data-theme="light"] {
+  --color-bg-base: #FDFCFA;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-subtle: #F7F5F2;
+  --color-bg-muted: #EFECE7;
+  
+  --color-text-primary: #1A1A1A;
+  --color-text-secondary: #6B6966;
+  --color-text-tertiary: #9D9A95;
+  --color-text-muted: #C4C1BC;
+  
+  --color-border: rgba(0, 0, 0, 0.06);
+  --color-border-subtle: rgba(0, 0, 0, 0.03);
+  
+  /* 为什么：北欧风格的强调色偏向温暖的蓝绿色调 */
+  --color-accent: #2D7A8C;
+  --color-accent-subtle: rgba(45, 122, 140, 0.08);
+  --color-accent-hover: #236A7A;
+  
+  --color-success: #3D8C6E;
+  --color-warning: #C4883A;
+  --color-danger: #C4573A;
+  
+  /* 阴影 - 极其柔和 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.06);
+  --shadow-glow: 0 0 40px rgba(45, 122, 140, 0.08);
+  
+  /* 背景噪点纹理 */
+  --noise-opacity: 0.015;
+  
+  /* JSON 预览区 */
+  --color-code-bg: #1E1E1E;
+  --color-code-header: #2D2D2D;
+}
+
+/* ----------------------------------------
+   深色主题 - 温暖炭灰
+   ---------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg-base: #141312;
+    --color-bg-elevated: #1C1B19;
+    --color-bg-subtle: #242320;
+    --color-bg-muted: #2E2D2A;
+    
+    --color-text-primary: #F5F3EF;
+    --color-text-secondary: #A8A5A0;
+    --color-text-tertiary: #7A7773;
+    --color-text-muted: #4A4845;
+    
+    --color-border: rgba(255, 255, 255, 0.06);
+    --color-border-subtle: rgba(255, 255, 255, 0.03);
+    
+    --color-accent: #5ABCD0;
+    --color-accent-subtle: rgba(90, 188, 208, 0.12);
+    --color-accent-hover: #7ACCE0;
+    
+    --color-success: #6BC4A0;
+    --color-warning: #E0A860;
+    --color-danger: #E07A60;
+    
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --shadow-glow: 0 0 60px rgba(90, 188, 208, 0.15);
+    
+    --noise-opacity: 0.02;
+    
+    --color-code-bg: #0D0D0D;
+    --color-code-header: #171717;
+  }
+}
+
+[data-theme="dark"] {
+  --color-bg-base: #141312;
+  --color-bg-elevated: #1C1B19;
+  --color-bg-subtle: #242320;
+  --color-bg-muted: #2E2D2A;
+  
+  --color-text-primary: #F5F3EF;
+  --color-text-secondary: #A8A5A0;
+  --color-text-tertiary: #7A7773;
+  --color-text-muted: #4A4845;
+  
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-subtle: rgba(255, 255, 255, 0.03);
+  
+  --color-accent: #5ABCD0;
+  --color-accent-subtle: rgba(90, 188, 208, 0.12);
+  --color-accent-hover: #7ACCE0;
+  
+  --color-success: #6BC4A0;
+  --color-warning: #E0A860;
+  --color-danger: #E07A60;
+  
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 60px rgba(90, 188, 208, 0.15);
+  
+  --noise-opacity: 0.02;
+  
+  --color-code-bg: #0D0D0D;
+  --color-code-header: #171717;
+}
+
+/* ----------------------------------------
+   全局重置与基础样式
+   ---------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  width: 100vw;
-  height: 100vh;
-  background-color: var(--color-bg);
+  font-family: var(--font-sans);
+  background-color: var(--color-bg-base);
   color: var(--color-text-primary);
-  overflow: hidden; /* App container handles scrolling */
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+  overflow: hidden;
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
+/* 为什么：噪点纹理增加质感，但非常微妙 */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: var(--noise-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  z-index: 9999;
 }
 
-/* Custom Scrollbar */
+#root {
+  height: 100vh;
+}
+
+/* ----------------------------------------
+   选择与滚动条
+   ---------------------------------------- */
+
+::selection {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--color-text-muted);
+  border-radius: 3px;
 }
 
-button {
-  cursor: pointer;
-  border: none;
-  background: transparent;
-  font-family: inherit;
-  padding: 0;
-  margin: 0;
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
+}
+
+/* ----------------------------------------
+   动画关键帧
+   ---------------------------------------- */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }

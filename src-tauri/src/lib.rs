@@ -5,7 +5,9 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       config::get_config_path,
       config::read_config,
-      config::write_config
+      config::write_config,
+      config::plan_skills_migration,
+      config::apply_skills_migration
     ])
     .run(tauri::generate_context!())
     .expect("运行 Tauri 应用失败");

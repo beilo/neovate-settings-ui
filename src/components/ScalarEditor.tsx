@@ -7,6 +7,9 @@ type Props = {
   onChange: (nextValue: unknown) => void
 }
 
+// 需要使用大文本框的字段名列表
+const TEXTAREA_FIELDS = new Set(['systemPrompt'])
+
 function classify(v: unknown): 'string' | 'number' | 'boolean' | 'null' | 'other' {
   if (v === null) return 'null'
   if (Array.isArray(v)) return 'other'
@@ -24,6 +27,9 @@ function classify(v: unknown): 'string' | 'number' | 'boolean' | 'null' | 'other
 
 export default function ScalarEditor({ path, value, onChange }: Props) {
   const kind = classify(value)
+  // 判断当前字段是否需要用大文本框
+  const fieldName = path.length > 0 ? String(path[path.length - 1]) : ''
+  const useTextarea = TEXTAREA_FIELDS.has(fieldName)
 
   return (
     <div>
@@ -37,7 +43,18 @@ export default function ScalarEditor({ path, value, onChange }: Props) {
           <div>类型</div>
           <div>字符串</div>
           <div>值</div>
-          <input className="input" value={value as string} onChange={(e) => onChange(e.target.value)} />
+          {useTextarea ? (
+            // systemPrompt 等长文本字段使用 textarea
+            <textarea
+              className="input"
+              rows={8}
+              value={value as string}
+              onChange={(e) => onChange(e.target.value)}
+              style={{ resize: 'vertical', minHeight: 120 }}
+            />
+          ) : (
+            <input className="input" value={value as string} onChange={(e) => onChange(e.target.value)} />
+          )}
         </div>
       )}
 
