@@ -6,6 +6,7 @@ pub fn run() {
       config::get_config_path,
       config::read_config,
       config::write_config,
+      config::install_builtin_plugin,
       config::plan_skills_migration,
       config::apply_skills_migration
     ])

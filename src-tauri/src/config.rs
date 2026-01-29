@@ -3,6 +3,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// 为什么：将内置插件代码以静态字符串打包进应用，避免依赖外部文件存在。
+const BUILTIN_NOTIFY_PLUGIN_JS: &str = include_str!("../builtin-plugins/notify.js");
+
 #[derive(Serialize)]
 pub struct ReadConfigResponse {
   pub path: String,
@@ -38,6 +41,13 @@ pub struct SkillsMigrationResult {
   pub replaced: usize,
 }
 
+#[derive(Serialize)]
+pub struct InstallBuiltinPluginResponse {
+  pub id: String,
+  pub path: String,
+  pub wrote: bool,
+}
+
 fn home_dir() -> Result<PathBuf, String> {
   // 为什么：不引入额外依赖（dirs 等），用最朴素的环境变量拿到 Home，够用且可控。
   if let Ok(home) = std::env::var("HOME") {
@@ -66,6 +76,25 @@ fn expand_tilde(path: &str) -> Result<PathBuf, String> {
 
 pub fn config_path() -> Result<PathBuf, String> {
   Ok(home_dir()?.join(".neovate").join("config.json"))
+}
+
+fn builtin_plugin_dest_path(id: &str) -> Result<PathBuf, String> {
+  // 为什么：先只内置 notify，保持最小实现；未来新增内置插件只需要扩展 match。
+  match id {
+    "notify" => Ok(home_dir()?
+      .join(".neovate")
+      .join("plugins")
+      .join("notify.js")),
+    _ => Err(format!("未知内置插件 id：{id}")),
+  }
+}
+
+fn builtin_plugin_content(id: &str) -> Result<&'static str, String> {
+  // 为什么：用函数统一管理内置插件内容，避免散落多处写 include_str。
+  match id {
+    "notify" => Ok(BUILTIN_NOTIFY_PLUGIN_JS),
+    _ => Err(format!("未知内置插件 id：{id}")),
+  }
 }
 
 #[tauri::command]
@@ -131,6 +160,40 @@ pub fn write_config(content: String) -> Result<WriteConfigResponse, String> {
   Ok(WriteConfigResponse {
     path: path.to_string_lossy().to_string(),
     backup_path,
+  })
+}
+
+#[tauri::command]
+pub fn install_builtin_plugin(id: String) -> Result<InstallBuiltinPluginResponse, String> {
+  let id = id.trim();
+  if id.is_empty() {
+    return Err("内置插件 id 不能为空".to_string());
+  }
+
+  let dest = builtin_plugin_dest_path(id)?;
+  let content = builtin_plugin_content(id)?;
+
+  if let Some(parent) = dest.parent() {
+    fs::create_dir_all(parent).map_err(|e| format!("创建插件目录失败：{e}"))?;
+  } else {
+    return Err("插件路径不合法（无法获取父目录）".to_string());
+  }
+
+  // 为什么：默认不覆盖用户已有文件，避免覆盖用户的自定义修改。
+  if dest.exists() {
+    return Ok(InstallBuiltinPluginResponse {
+      id: id.to_string(),
+      path: dest.to_string_lossy().to_string(),
+      wrote: false,
+    });
+  }
+
+  fs::write(&dest, content).map_err(|e| format!("写入内置插件失败：{e}"))?;
+
+  Ok(InstallBuiltinPluginResponse {
+    id: id.to_string(),
+    path: dest.to_string_lossy().to_string(),
+    wrote: true,
   })
 }
 

@@ -10,15 +10,11 @@ import {
   Select,
   Typography,
   Tag,
-  Badge,
   Modal,
   message,
   ConfigProvider,
-  Empty,
-  Alert,
   Switch,
   Card,
-  AutoComplete,
   Popconfirm,
 } from 'antd'
 import {
@@ -26,7 +22,6 @@ import {
   SaveOutlined,
   SearchOutlined,
   InfoCircleOutlined,
-  PlusOutlined,
   DeleteOutlined,
   RobotOutlined,
 } from '@ant-design/icons'
@@ -258,8 +253,8 @@ type AgentDraft = Record<string, AgentConfig>
 // 为什么：系统内置的 Agent 类型，这些不允许删除 key，只允许修改配置
 const BUILTIN_AGENT_TYPES = ['Explore', 'GeneralPurpose'] as const
 
-// 为什么：常用模型预设，提供下拉选项；用户也可自由输入
-const COMMON_MODELS = [
+// 为什么：常用模型预设，提供下拉选项；用户也可自由输入（当前版本暂未使用，保留供后续扩展）
+const _COMMON_MODELS = [
   // Anthropic
   { value: 'anthropic/claude-sonnet-4-20250514', label: 'Claude Sonnet 4 (最新)' },
   { value: 'anthropic/claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
@@ -279,6 +274,7 @@ const COMMON_MODELS = [
   { value: 'groq/llama-3.3-70b-versatile', label: 'Llama 3.3 70B (Groq)' },
   { value: 'groq/llama-3.1-8b-instant', label: 'Llama 3.1 8B (Groq 极速)' },
 ] as const
+void _COMMON_MODELS // 为什么：显式标记为已使用，避免 TS6133 警告
 
 type CommitConfig = {
   language?: string
@@ -322,6 +318,12 @@ type SkillsMigrationResult = {
   copied: number
   skipped: number
   replaced: number
+}
+
+type InstallBuiltinPluginResponse = {
+  id: string
+  path: string
+  wrote: boolean
 }
 
 const MACOS_SOUNDS = [
@@ -392,6 +394,17 @@ function formatComplexValue(value: unknown): string {
   } catch {
     return '（无法展示）'
   }
+}
+
+function pickStringArray(value: unknown): string[] {
+  // 为什么：plugins 等字段是数组，但用户可能手改成其他类型；这里兜底为字符串数组。
+  if (!Array.isArray(value)) return []
+  return value.filter((v): v is string => typeof v === 'string')
+}
+
+function isBuiltinNotifyPluginEntry(value: string): boolean {
+  // 为什么：兼容不同平台路径分隔符；只要以 .neovate/plugins/notify.js 结尾就视为同一个插件。
+  return /[\\/]\.neovate[\\/]plugins[\\/]notify\.js$/.test(value)
 }
 
 // 为什么：从配置中提取 agent 字段，转换为 UI 可编辑的 AgentDraft
@@ -525,12 +538,18 @@ export default function App() {
   })
   const [desktopDraft, setDesktopDraft] = useState<DesktopDraft>({})
   const [agentDraft, setAgentDraft] = useState<AgentDraft>({})
-  const [newAgentName, setNewAgentName] = useState<string>('')
+  // 为什么：mcpServers 用 JSON 字符串草稿，支持粘贴后格式化
+  const [mcpServersDraft, setMcpServersDraft] = useState<string>('')
+  const [mcpServersError, setMcpServersError] = useState<string>('')
+  const [mcpServersModalOpen, setMcpServersModalOpen] = useState<boolean>(false)
   const [skillsSourcePath, setSkillsSourcePath] = useState<string>('')
   const [skillsTargetPath, setSkillsTargetPath] = useState<string>('')
   const [skillsBusy, setSkillsBusy] = useState<boolean>(false)
   const [skillsPlan, setSkillsPlan] = useState<SkillsMigrationPlan | null>(null)
   const [skillsModalOpen, setSkillsModalOpen] = useState<boolean>(false)
+
+  // 为什么：内置插件安装过程需要异步写文件，避免重复点击造成并发写入。
+  const [builtinNotifyBusy, setBuiltinNotifyBusy] = useState<boolean>(false)
 
   // 为什么：右侧 JSON 预览面板宽度，支持拖拽调整
   const [rightPanelWidth, setRightPanelWidth] = useState<number>(400)
@@ -543,6 +562,11 @@ export default function App() {
   const previewConfig = useMemo(() => applyFormValues(baseConfig, formValues), [baseConfig, formValues])
   const previewText = useMemo(() => stringifyConfig(previewConfig), [previewConfig])
   const dirty = previewText !== loadedTextRef.current
+  const builtinNotifyEntry = useMemo(() => {
+    const plugins = pickStringArray((previewConfig as Record<string, unknown>).plugins)
+    return plugins.find(isBuiltinNotifyPluginEntry)
+  }, [previewConfig])
+  const builtinNotifyEnabled = !!builtinNotifyEntry
   const filteredSettings = useMemo(() => {
     const keyword = searchText.trim().toLowerCase()
     if (!keyword) return SETTINGS
@@ -573,6 +597,15 @@ export default function App() {
     setDesktopDraft(pickDesktopDraft(base.desktop))
     // 为什么：agent 是 Record<string, AgentConfig>，需要单独草稿支持卡片编辑
     setAgentDraft(pickAgentDraft(base.agent))
+    // 为什么：mcpServers 用 JSON 字符串存储，方便粘贴和格式化
+    const mcpValue = base.mcpServers
+    if (mcpValue !== undefined && isPlainObject(mcpValue) && Object.keys(mcpValue).length > 0) {
+      setMcpServersDraft(JSON.stringify(mcpValue, null, 2))
+      setMcpServersError('')
+    } else {
+      setMcpServersDraft('')
+      setMcpServersError('')
+    }
     loadedTextRef.current = stringifyConfig(applyFormValues(base, picked))
   }, [])
 
@@ -604,6 +637,35 @@ export default function App() {
       setBusy(false)
     }
   }
+
+  const enableBuiltinNotify = useCallback(async () => {
+    setBuiltinNotifyBusy(true)
+    try {
+      const res = (await invoke('install_builtin_plugin', { id: 'notify' })) as InstallBuiltinPluginResponse
+      setBaseConfig((prevBase) => {
+        const prevPlugins = pickStringArray((prevBase as Record<string, unknown>).plugins)
+        const nextPlugins = prevPlugins.includes(res.path) ? prevPlugins : [...prevPlugins, res.path]
+        return { ...prevBase, plugins: nextPlugins }
+      })
+      messageApi.success(res.wrote ? '内置通知插件已写入并启用' : '内置通知插件已启用（文件已存在）')
+    } catch (e) {
+      messageApi.error(`启用内置通知插件失败：${String(e)}`)
+    } finally {
+      setBuiltinNotifyBusy(false)
+    }
+  }, [messageApi])
+
+  const disableBuiltinNotify = useCallback(() => {
+    setBaseConfig((prevBase) => {
+      const prevPlugins = pickStringArray((prevBase as Record<string, unknown>).plugins)
+      const nextPlugins = prevPlugins.filter((p) => !isBuiltinNotifyPluginEntry(p))
+      const nextBase = { ...prevBase } as Record<string, unknown>
+      if (nextPlugins.length === 0) delete nextBase.plugins
+      else nextBase.plugins = nextPlugins
+      return nextBase
+    })
+    messageApi.success('已禁用内置通知插件')
+  }, [messageApi])
 
   const resetCommitDraft = useCallback(() => {
     // 为什么：恢复默认时不强行写入默认值；清空字段等价于走默认逻辑，避免配置噪音。
@@ -714,24 +776,68 @@ export default function App() {
     })
   }, [])
 
-  // 为什么：添加自定义 Agent
-  const addAgent = useCallback((name: string) => {
-    const trimmed = name.trim()
-    if (!trimmed) return
-    setAgentDraft((prevDraft) => {
-      if (prevDraft[trimmed]) return prevDraft // 已存在，不重复添加
-      const nextDraft = { ...prevDraft, [trimmed]: { model: '' } }
-      return nextDraft
-    })
-    setNewAgentName('')
-  }, [])
-
   // 为什么：重置所有 Agent 配置
   const resetAgentDraft = useCallback(() => {
     setAgentDraft({})
     setBaseConfig((prev) => {
       const next = { ...prev }
       delete next.agent
+      return next
+    })
+  }, [])
+
+  // 为什么：mcpServers 用 JSON 文本编辑，支持直接粘贴配置
+  const updateMcpServersDraft = useCallback((text: string) => {
+    setMcpServersDraft(text)
+    if (text.trim() === '') {
+      // 清空时删除 mcpServers 字段
+      setMcpServersError('')
+      setBaseConfig((prev) => {
+        const next = { ...prev }
+        delete next.mcpServers
+        return next
+      })
+      return
+    }
+    const parsed = safeJsonParse(text)
+    if (!parsed.ok) {
+      setMcpServersError('JSON 格式错误')
+      return
+    }
+    if (!isPlainObject(parsed.value)) {
+      setMcpServersError('必须是对象类型 {}')
+      return
+    }
+    setMcpServersError('')
+    setBaseConfig((prev) => {
+      const next = { ...prev }
+      if (Object.keys(parsed.value as object).length === 0) {
+        delete next.mcpServers
+      } else {
+        next.mcpServers = parsed.value
+      }
+      return next
+    })
+  }, [])
+
+  // 为什么：格式化 JSON，让粘贴的内容更整洁
+  const formatMcpServersDraft = useCallback(() => {
+    const text = mcpServersDraft.trim()
+    if (!text) return
+    const parsed = safeJsonParse(text)
+    if (parsed.ok && isPlainObject(parsed.value)) {
+      setMcpServersDraft(JSON.stringify(parsed.value, null, 2))
+      setMcpServersError('')
+    }
+  }, [mcpServersDraft])
+
+  // 为什么：重置 mcpServers 配置
+  const resetMcpServersDraft = useCallback(() => {
+    setMcpServersDraft('')
+    setMcpServersError('')
+    setBaseConfig((prev) => {
+      const next = { ...prev }
+      delete next.mcpServers
       return next
     })
   }, [])
@@ -1139,9 +1245,47 @@ export default function App() {
                               onChange={(e) => updateCommitDraft({ systemPrompt: e.target.value })}
                               autoSize={{ minRows: 3, maxRows: 10 }}
                             />
-                          </div>
                         </div>
+                      </div>
 	                      </div>
+                    )
+                  }
+
+                  // 为什么：mcpServers 使用弹窗编辑器，点击按钮打开 Modal
+                  if (def.kind === 'complex' && def.key === 'mcpServers') {
+                    const hasContent = mcpServersDraft.trim().length > 0
+                    let serverCount = 0
+                    if (hasContent && !mcpServersError) {
+                      const parsed = safeJsonParse(mcpServersDraft)
+                      if (parsed.ok && isPlainObject(parsed.value)) {
+                        serverCount = Object.keys(parsed.value).length
+                      }
+                    }
+                    return (
+                      <div
+                        key={def.key}
+                        className="setting-row"
+                        style={{ animationDelay: `${index * 0.02}s` }}
+                      >
+                        <div className="setting-info">
+                          <div className="setting-header">
+                            <Text className="setting-key">{def.title}</Text>
+                            {serverCount > 0 && (
+                              <Tag color="blue" style={{ margin: 0 }}>
+                                {serverCount} 个服务器
+                              </Tag>
+                            )}
+                          </div>
+                          <Text className="setting-desc">{def.description}</Text>
+                          <div className="setting-default">Default: {def.defaultHint}</div>
+                        </div>
+
+                        <div className="setting-control">
+                          <Button size="small" onClick={() => setMcpServersModalOpen(true)}>
+                            编辑
+                          </Button>
+                        </div>
+                      </div>
                     )
                   }
 
@@ -1232,6 +1376,87 @@ export default function App() {
                               </Button>
                             </div>
                           </div>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  if (def.kind === 'complex' && def.key === 'plugins') {
+                    const rowBorder = isLast ? 'none' : '1px solid #f0f0f0'
+                    return (
+                      <div key={def.key}>
+                        <div
+                          className="setting-row"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '16px 20px',
+                            borderBottom: 'none',
+                            minHeight: 60,
+                          }}
+                        >
+                          <div style={{ flex: 1, paddingRight: 20 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                              <Text style={{ fontSize: 14, fontWeight: 500 }}>{def.title}</Text>
+                              {builtinNotifyEnabled && (
+                                <Tag color="blue" style={{ margin: 0 }}>
+                                  已启用
+                                </Tag>
+                              )}
+                            </div>
+                            <Text type="secondary" style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
+                              {def.description}
+                            </Text>
+                            <div style={{ marginTop: 2 }}>
+                              <Text type="secondary" style={{ fontSize: 10, opacity: 0.7 }}>
+                                Default: {def.defaultHint}
+                              </Text>
+                            </div>
+                          </div>
+
+                          <div style={{ width: 240, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+                            <Text type="secondary" style={{ fontSize: 12, textAlign: 'right' }}>
+                              {formatComplexValue(previewConfig.plugins)} <InfoCircleOutlined />
+                            </Text>
+                          </div>
+                        </div>
+
+                        <div style={{ borderBottom: rowBorder, padding: '0 20px 16px 20px' }}>
+                          <div style={{ paddingTop: 8 }}>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              内置插件（可选启用）：开启后会把插件文件写入 ~/.neovate/plugins/ 并把路径加入 plugins。
+                            </Text>
+                          </div>
+
+                          <Card size="small" style={{ marginTop: 12, borderRadius: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                              <div style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 12, fontWeight: 500 }}>notify</Text>
+                                <div style={{ marginTop: 4 }}>
+                                  <Text type="secondary" style={{ fontSize: 12 }}>
+                                    stop 时发送系统通知（依赖 terminal-notifier）
+                                  </Text>
+                                </div>
+                                {builtinNotifyEntry && (
+                                  <div style={{ marginTop: 6 }}>
+                                    <Text type="secondary" style={{ fontSize: 11 }}>
+                                      路径：{builtinNotifyEntry}
+                                    </Text>
+                                  </div>
+                                )}
+                              </div>
+
+                              <Switch
+                                checked={builtinNotifyEnabled}
+                                disabled={builtinNotifyBusy}
+                                onChange={(checked) => {
+                                  if (checked) void enableBuiltinNotify()
+                                  else disableBuiltinNotify()
+                                }}
+                              />
+                            </div>
+                          </Card>
                         </div>
                       </div>
                     )
@@ -1702,6 +1927,62 @@ export default function App() {
 
         </Content>
       </Layout>
+
+      {/* 为什么：mcpServers 编辑弹窗，支持粘贴 JSON 后格式化 */}
+      <Modal
+        title="编辑 MCP Servers"
+        open={mcpServersModalOpen}
+        onCancel={() => setMcpServersModalOpen(false)}
+        width={600}
+        footer={[
+          <Button key="reset" onClick={resetMcpServersDraft}>
+            清空
+          </Button>,
+          <Button key="format" onClick={formatMcpServersDraft} disabled={!mcpServersDraft.trim() || !!mcpServersError}>
+            格式化
+          </Button>,
+          <Button key="close" type="primary" onClick={() => setMcpServersModalOpen(false)}>
+            完成
+          </Button>,
+        ]}
+      >
+        <div style={{ marginBottom: 12 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            从文档复制 MCP Server 配置后直接粘贴，点击「格式化」整理格式。
+          </Text>
+        </div>
+        <Input.TextArea
+          value={mcpServersDraft}
+          onChange={(e) => updateMcpServersDraft(e.target.value)}
+          placeholder={`粘贴 JSON 配置，例如：
+{
+  "filesystem": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"]
+  },
+  "github": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-github"],
+    "env": { "GITHUB_TOKEN": "your-token" }
+  }
+}`}
+          autoSize={{ minRows: 10, maxRows: 20 }}
+          style={{
+            fontFamily: "'JetBrains Mono', Menlo, Monaco, monospace",
+            fontSize: 12,
+          }}
+        />
+        {mcpServersError && (
+          <Text type="danger" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
+            {mcpServersError}
+          </Text>
+        )}
+        {!mcpServersError && mcpServersDraft.trim() && (
+          <Text type="success" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
+            ✓ JSON 格式正确
+          </Text>
+        )}
+      </Modal>
 
       <Modal
         title="技能迁移冲突"
