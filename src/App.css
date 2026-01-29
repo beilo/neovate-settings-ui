@@ -134,6 +134,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0 var(--space-7);
+  min-width: 680px;
 }
 
 .settings-container {
@@ -249,7 +250,7 @@
 .setting-info {
   flex: 1;
   padding-right: var(--space-5);
-  min-width: 280px;
+  min-width: 0;
 }
 
 .setting-header {
