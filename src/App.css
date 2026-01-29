@@ -249,7 +249,7 @@
 .setting-info {
   flex: 1;
   padding-right: var(--space-5);
-  min-width: 0;
+  min-width: 280px;
 }
 
 .setting-header {

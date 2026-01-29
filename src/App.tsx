@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 import CodeMirror from '@uiw/react-codemirror'
 import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
@@ -322,6 +323,8 @@ type SkillsMigrationResult = {
 
 type InstallBuiltinPluginResponse = {
   id: string
+  // 为什么：返回 builtin:notify 作为配置值，避免跨机器路径失效。
+  entry: string
   path: string
   wrote: boolean
 }
@@ -403,7 +406,8 @@ function pickStringArray(value: unknown): string[] {
 }
 
 function isBuiltinNotifyPluginEntry(value: string): boolean {
-  // 为什么：兼容不同平台路径分隔符；只要以 .neovate/plugins/notify.js 结尾就视为同一个插件。
+  // 为什么：新格式用 builtin:notify，旧格式仍用路径匹配，保证向后兼容。
+  if (value === 'builtin:notify') return true
   return /[\\/]\.neovate[\\/]plugins[\\/]notify\.js$/.test(value)
 }
 
@@ -644,7 +648,8 @@ export default function App() {
       const res = (await invoke('install_builtin_plugin', { id: 'notify' })) as InstallBuiltinPluginResponse
       setBaseConfig((prevBase) => {
         const prevPlugins = pickStringArray((prevBase as Record<string, unknown>).plugins)
-        const nextPlugins = prevPlugins.includes(res.path) ? prevPlugins : [...prevPlugins, res.path]
+        // 为什么：用 entry（builtin:notify）存储配置值，兼容旧路径时避免重复写入。
+        const nextPlugins = prevPlugins.some(isBuiltinNotifyPluginEntry) ? prevPlugins : [...prevPlugins, res.entry]
         return { ...prevBase, plugins: nextPlugins }
       })
       messageApi.success(res.wrote ? '内置通知插件已写入并启用' : '内置通知插件已启用（文件已存在）')
@@ -665,6 +670,39 @@ export default function App() {
       return nextBase
     })
     messageApi.success('已禁用内置通知插件')
+  }, [messageApi])
+
+  const addCustomPlugin = useCallback(async () => {
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: 'JavaScript', extensions: ['js'] }],
+    })
+    if (!selected) return
+    const filePath = typeof selected === 'string' ? selected : selected.path
+    if (!filePath) return
+    setBaseConfig((prevBase) => {
+      const prevPlugins = pickStringArray((prevBase as Record<string, unknown>).plugins)
+      if (prevPlugins.includes(filePath)) {
+        messageApi.warning('该插件已存在')
+        return prevBase
+      }
+      const nextBase = { ...prevBase } as Record<string, unknown>
+      nextBase.plugins = [...prevPlugins, filePath]
+      return nextBase
+    })
+    messageApi.success('已添加自定义插件')
+  }, [messageApi])
+
+  const removeCustomPlugin = useCallback((pluginPath: string) => {
+    setBaseConfig((prevBase) => {
+      const prevPlugins = pickStringArray((prevBase as Record<string, unknown>).plugins)
+      const nextPlugins = prevPlugins.filter((p) => p !== pluginPath)
+      const nextBase = { ...prevBase } as Record<string, unknown>
+      if (nextPlugins.length === 0) delete nextBase.plugins
+      else nextBase.plugins = nextPlugins
+      return nextBase
+    })
+    messageApi.success('已移除插件')
   }, [messageApi])
 
   const resetCommitDraft = useCallback(() => {
@@ -1383,6 +1421,8 @@ export default function App() {
 
                   if (def.kind === 'complex' && def.key === 'plugins') {
                     const rowBorder = isLast ? 'none' : '1px solid #f0f0f0'
+                    const allPlugins = pickStringArray((previewConfig as Record<string, unknown>).plugins)
+                    const customPlugins = allPlugins.filter((p) => !isBuiltinNotifyPluginEntry(p))
                     return (
                       <div key={def.key}>
                         <div
@@ -1399,9 +1439,9 @@ export default function App() {
                           <div style={{ flex: 1, paddingRight: 20 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                               <Text style={{ fontSize: 14, fontWeight: 500 }}>{def.title}</Text>
-                              {builtinNotifyEnabled && (
+                              {allPlugins.length > 0 && (
                                 <Tag color="blue" style={{ margin: 0 }}>
-                                  已启用
+                                  {allPlugins.length} 个插件
                                 </Tag>
                               )}
                             </div>
@@ -1416,16 +1456,16 @@ export default function App() {
                           </div>
 
                           <div style={{ width: 240, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
-                            <Text type="secondary" style={{ fontSize: 12, textAlign: 'right' }}>
-                              {formatComplexValue(previewConfig.plugins)} <InfoCircleOutlined />
-                            </Text>
+                            <Button size="small" onClick={() => void addCustomPlugin()}>
+                              添加插件
+                            </Button>
                           </div>
                         </div>
 
                         <div style={{ borderBottom: rowBorder, padding: '0 20px 16px 20px' }}>
                           <div style={{ paddingTop: 8 }}>
                             <Text type="secondary" style={{ fontSize: 12 }}>
-                              内置插件（可选启用）：开启后会把插件文件写入 ~/.neovate/plugins/ 并把路径加入 plugins。
+                              内置插件（可选启用）：开启后会在 plugins 数组中添加 builtin:xxx 标识符。
                             </Text>
                           </div>
 
@@ -1441,7 +1481,7 @@ export default function App() {
                                 {builtinNotifyEntry && (
                                   <div style={{ marginTop: 6 }}>
                                     <Text type="secondary" style={{ fontSize: 11 }}>
-                                      路径：{builtinNotifyEntry}
+                                      配置值：{builtinNotifyEntry}
                                     </Text>
                                   </div>
                                 )}
@@ -1457,6 +1497,33 @@ export default function App() {
                               />
                             </div>
                           </Card>
+
+                          {customPlugins.length > 0 && (
+                            <div style={{ marginTop: 16 }}>
+                              <Text style={{ fontSize: 12, fontWeight: 500 }}>自定义插件</Text>
+                              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {customPlugins.map((pluginPath) => (
+                                  <Card key={pluginPath} size="small" style={{ borderRadius: 8 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <Text style={{ fontSize: 12, wordBreak: 'break-all' }}>
+                                          {pluginPath}
+                                        </Text>
+                                      </div>
+                                      <Popconfirm
+                                        title="确定移除此插件？"
+                                        onConfirm={() => removeCustomPlugin(pluginPath)}
+                                        okText="移除"
+                                        cancelText="取消"
+                                      >
+                                        <Button type="text" size="small" icon={<DeleteOutlined />} danger />
+                                      </Popconfirm>
+                                    </div>
+                                  </Card>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )

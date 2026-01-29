@@ -44,6 +44,9 @@ pub struct SkillsMigrationResult {
 #[derive(Serialize)]
 pub struct InstallBuiltinPluginResponse {
   pub id: String,
+  // 为什么：返回 builtin:<id> 作为配置存储值，避免跨机器路径失效。
+  pub entry: String,
+  // 为什么：保留实际文件路径用于 UI 展示。
   pub path: String,
   pub wrote: bool,
 }
@@ -181,8 +184,10 @@ pub fn install_builtin_plugin(id: String) -> Result<InstallBuiltinPluginResponse
 
   // 为什么：默认不覆盖用户已有文件，避免覆盖用户的自定义修改。
   if dest.exists() {
+    // 为什么：entry 用于配置存储，path 仅用于展示与诊断。
     return Ok(InstallBuiltinPluginResponse {
       id: id.to_string(),
+      entry: format!("builtin:{id}"),
       path: dest.to_string_lossy().to_string(),
       wrote: false,
     });
@@ -190,8 +195,10 @@ pub fn install_builtin_plugin(id: String) -> Result<InstallBuiltinPluginResponse
 
   fs::write(&dest, content).map_err(|e| format!("写入内置插件失败：{e}"))?;
 
+  // 为什么：entry 用于配置存储，path 仅用于展示与诊断。
   Ok(InstallBuiltinPluginResponse {
     id: id.to_string(),
+    entry: format!("builtin:{id}"),
     path: dest.to_string_lossy().to_string(),
     wrote: true,
   })
