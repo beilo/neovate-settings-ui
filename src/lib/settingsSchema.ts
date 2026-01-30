@@ -1,0 +1,213 @@
+// 为什么：集中维护配置字段清单与常量，便于检索和扩展。
+
+import type { SettingDef } from './configTypes'
+
+// 为什么：左侧标题需要与配置键完全一致，便于用户按官网字段检索。
+export const SETTINGS: SettingDef[] = [
+  {
+    key: 'approvalMode',
+    kind: 'enum',
+    title: 'approvalMode',
+    description: '审批模式',
+    defaultHint: '"default"',
+    options: ['autoEdit', 'yolo', 'default'],
+  },
+  // 为什么：补齐 agent/skills，确保设置清单与官方字段一一对应。
+  {
+    key: 'agent',
+    kind: 'complex',
+    title: 'agent',
+    description:
+      '为不同的代理类型配置特定设置。每个代理类型可以有自己的模型和其他配置。\n模型解析优先级：显式模型参数 > agent.{type}.model > 代理定义中的模型 > 全局 model。\n可用类型：Explore、GeneralPurpose。',
+    defaultHint: '{}',
+  },
+  {
+    key: 'autoCompact',
+    kind: 'boolean',
+    title: 'autoCompact',
+    description: '自动压缩历史消息',
+    defaultHint: 'true',
+  },
+  {
+    key: 'autoUpdate',
+    kind: 'boolean',
+    title: 'autoUpdate',
+    description: '自动更新',
+    defaultHint: 'true',
+  },
+  {
+    key: 'browser',
+    kind: 'boolean',
+    title: 'browser',
+    description: '浏览器 MCP 集成',
+    defaultHint: 'false',
+  },
+  {
+    key: 'commit',
+    kind: 'complex',
+    title: 'commit',
+    description: '提交信息生成配置（language/systemPrompt/model）',
+    defaultHint: '{ language: "en", systemPrompt?: string, model?: "provider_id/model_id" }',
+  },
+  {
+    key: 'desktop',
+    kind: 'complex',
+    title: 'desktop',
+    description: '桌面应用配置。此设置只能全局设置。',
+    defaultHint: '{ theme: "light", sendMessageWith: "enter" }',
+  },
+  {
+    key: 'extensions',
+    kind: 'complex',
+    title: 'extensions',
+    description: '第三方 Agent 扩展',
+    defaultHint: '{}',
+  },
+  {
+    key: 'httpProxy',
+    kind: 'string',
+    title: 'httpProxy',
+    description: '网络代理地址',
+    defaultHint: 'null',
+  },
+  {
+    key: 'language',
+    kind: 'string',
+    title: 'language',
+    description: '界面与回复语言',
+    defaultHint: '"English"',
+  },
+  {
+    key: 'mcpServers',
+    kind: 'complex',
+    title: 'mcpServers',
+    description: 'MCP 服务器配置',
+    defaultHint: '{}',
+  },
+  {
+    key: 'model',
+    kind: 'string',
+    title: 'model',
+    description: '默认模型',
+    defaultHint: 'null',
+  },
+  {
+    key: 'notification',
+    kind: 'complex',
+    title: 'notification',
+    description: '指定会话完成时的通知行为。',
+    defaultHint: 'false',
+  },
+  {
+    key: 'outputFormat',
+    kind: 'enum',
+    title: 'outputFormat',
+    description: 'CLI 输出格式',
+    defaultHint: '"text"',
+    options: ['text', 'stream-json', 'json'],
+  },
+  {
+    key: 'outputStyle',
+    kind: 'string',
+    title: 'outputStyle',
+    description: '输出风格',
+    defaultHint: '"Default"',
+  },
+  {
+    key: 'planModel',
+    kind: 'string',
+    title: 'planModel',
+    description: '规划模型',
+    defaultHint: '同 model',
+  },
+  {
+    key: 'plugins',
+    kind: 'complex',
+    title: 'plugins',
+    description: '启用的插件列表',
+    defaultHint: '[]',
+  },
+  {
+    key: 'provider',
+    kind: 'complex',
+    title: 'provider',
+    description: '自定义 Provider 配置',
+    defaultHint: '{}',
+  },
+  {
+    key: 'quiet',
+    kind: 'boolean',
+    title: 'quiet',
+    description: '静默模式',
+    defaultHint: 'false',
+  },
+  {
+    key: 'skills',
+    kind: 'complex',
+    title: 'skills',
+    description: '指定要加载的额外 SKILL.md 文件或目录（每个条目为文件路径或包含该文件的目录）。',
+    defaultHint: '[]',
+  },
+  {
+    key: 'smallModel',
+    kind: 'string',
+    title: 'smallModel',
+    description: '轻量任务模型',
+    defaultHint: '同 model',
+  },
+  {
+    key: 'systemPrompt',
+    kind: 'string',
+    title: 'systemPrompt',
+    description: '系统提示词',
+    defaultHint: 'null',
+  },
+  {
+    key: 'temperature',
+    kind: 'number',
+    title: 'temperature',
+    description: '模型随机性 (0-1)',
+    defaultHint: 'null',
+  },
+  {
+    key: 'todo',
+    kind: 'boolean',
+    title: 'todo',
+    description: '启用 Todo 功能',
+    defaultHint: 'true',
+  },
+  {
+    key: 'tools',
+    kind: 'complex',
+    title: 'tools',
+    description: '工具开关配置',
+    defaultHint: '{}',
+  },
+  {
+    key: 'visionModel',
+    kind: 'string',
+    title: 'visionModel',
+    description: '视觉模型',
+    defaultHint: '同 model',
+  },
+]
+
+// 为什么：系统内置的 Agent 类型，这些不允许删除 key，只允许修改配置。
+export const BUILTIN_AGENT_TYPES = ['Explore', 'GeneralPurpose'] as const
+
+export const MACOS_SOUNDS = [
+  'Basso',
+  'Blow',
+  'Bottle',
+  'Frog',
+  'Funk',
+  'Glass',
+  'Hero',
+  'Morse',
+  'Ping',
+  'Pop',
+  'Purr',
+  'Sosumi',
+  'Submarine',
+  'Tink',
+] as const
