@@ -43,7 +43,10 @@ export function useConfigState() {
   const [baseConfig, setBaseConfig] = useState<Record<string, unknown>>({})
   const [formValues, setFormValues] = useState<FormState>({})
   const [searchText, setSearchText] = useState<string>('')
-  const loadedTextRef = useRef<string>('{\\n}\\n')
+  // 为什么：和 sourceText 初始值保持一致，避免初始状态被误判为 dirty。
+  const loadedTextRef = useRef<string>(`{\n}\n`)
+  // 为什么：builtinNotifyPath 是异步解析；这里只在“路径首次就绪”时做一次补偿同步，避免后续重复跑。
+  const builtinNotifySyncRef = useRef<string>('')
 
   const [busy, setBusy] = useState<boolean>(false)
   const [messageApi, contextHolder] = message.useMessage()
@@ -481,14 +484,13 @@ export function useConfigState() {
 
   useEffect(() => {
     if (!builtinNotifyPath) return
-    // 为什么：当旧配置包含 builtin:notify 时，自动迁移到真实路径以便可加载。
-    setBaseConfig((prev) => {
-      const rawPlugins = pickStringArray((prev as Record<string, unknown>).plugins)
-      if (!rawPlugins.includes('builtin:notify')) return prev
-      const migratedPlugins = rawPlugins.map((p) => (p === 'builtin:notify' ? builtinNotifyPath : p))
-      return { ...prev, plugins: migratedPlugins }
-    })
-  }, [builtinNotifyPath])
+    // 为什么：builtinNotifyPath 是异步解析；若 reload 早于解析完成，则需要补跑一次以应用迁移逻辑。
+    // 这里用文本包含判断做 cheap guard，避免无关场景重复解析/写状态。
+    if (builtinNotifySyncRef.current === builtinNotifyPath) return
+    builtinNotifySyncRef.current = builtinNotifyPath
+    if (!sourceText.includes('builtin:notify')) return
+    syncFromContent(sourceText)
+  }, [builtinNotifyPath, sourceText, syncFromContent])
 
   useEffect(() => {
     if (skillsSourcePath) localStorage.setItem('neovate.skills.sourcePath', skillsSourcePath)
@@ -635,3 +637,7 @@ export function useConfigState() {
 
   return { state, actions, contextHolder }
 }
+
+// 为什么：导出类型给 Zustand store 复用，避免重复声明。
+export type ConfigState = ReturnType<typeof useConfigState>['state']
+export type ConfigActions = ReturnType<typeof useConfigState>['actions']

@@ -6,63 +6,31 @@ import {
   SearchOutlined,
 } from '@ant-design/icons'
 import type {
-  AgentDraft,
-  CommitConfig,
-  DesktopDraft,
-  FormState,
-  FormValue,
-  NotificationDraft,
   NotificationMode,
-  SettingDef,
+  DesktopDraft,
 } from '../lib/configTypes'
 import { BUILTIN_AGENT_TYPES, MACOS_SOUNDS } from '../lib/settingsSchema'
 import { formatComplexValue, isBuiltinNotifyPluginEntry, pickStringArray, safeJsonParse, isPlainObject } from '../lib/configHelpers'
+import { useSettingsStore } from '../store/settingsStore'
+import { useMcpStore } from '../store/mcpStore'
+import { useSkillsStore } from '../store/skillsStore'
 
 const { Text } = Typography
 const { Option } = Select
 
-type Props = {
-  filteredSettings: SettingDef[]
-  searchText: string
-  isValid: boolean
-  formValues: FormState
-  previewConfig: Record<string, unknown>
-  commitDraft: CommitConfig
-  notificationDraft: NotificationDraft
-  desktopDraft: DesktopDraft
-  agentDraft: AgentDraft
-  mcpServersDraft: string
-  mcpServersError: string
-  skillsSourcePath: string
-  skillsTargetPath: string
-  skillsBusy: boolean
-  builtinNotifyEnabled: boolean
-  builtinNotifyEntry?: string
-  builtinNotifyBusy: boolean
-  builtinNotifyPath: string
-  onSearchTextChange: (value: string) => void
-  onUpdateFormValue: (key: string, value: FormValue) => void
-  onUpdateCommitDraft: (patch: Partial<CommitConfig>) => void
-  onResetCommitDraft: () => void
-  onUpdateNotificationDraft: (patch: Partial<NotificationDraft>) => void
-  onResetNotificationDraft: () => void
-  onUpdateDesktopDraft: (patch: Partial<DesktopDraft>) => void
-  onResetDesktopDraft: () => void
-  onUpdateAgentModel: (agentType: string, model: string) => void
-  onRemoveAgent: (agentType: string) => void
-  onResetAgentDraft: () => void
-  onOpenMcpServersModal: () => void
-  onSetSkillsSourcePath: (value: string) => void
-  onSetSkillsTargetPath: (value: string) => void
-  onRunSkillsMigration: () => Promise<void> | void
-  onEnableBuiltinNotify: () => Promise<void> | void
-  onDisableBuiltinNotify: () => void
-  onAddCustomPlugin: () => Promise<void> | void
-  onRemoveCustomPlugin: (pluginPath: string) => void
-}
-
 // 为什么：设置面板独立，集中处理表单与复杂设置区渲染。
-export default function SettingsPanel(props: Props) {
+export default function SettingsPanel() {
+  // 为什么：按领域读取 store，降低依赖面。
+  const settingsState = useSettingsStore((store) => store.state)
+  const settingsActions = useSettingsStore((store) => store.actions)
+  const mcpState = useMcpStore((store) => store.state)
+  const mcpActions = useMcpStore((store) => store.actions)
+  const skillsState = useSkillsStore((store) => store.state)
+  const skillsActions = useSkillsStore((store) => store.actions)
+
+  // 为什么：store 尚未就绪时先不渲染，避免空引用报错。
+  if (!settingsState || !settingsActions || !mcpState || !mcpActions || !skillsState || !skillsActions) return null
+
   const {
     filteredSettings,
     searchText,
@@ -73,35 +41,14 @@ export default function SettingsPanel(props: Props) {
     notificationDraft,
     desktopDraft,
     agentDraft,
-    mcpServersDraft,
-    mcpServersError,
-    skillsSourcePath,
-    skillsTargetPath,
-    skillsBusy,
     builtinNotifyEnabled,
     builtinNotifyEntry,
     builtinNotifyBusy,
     builtinNotifyPath,
-    onSearchTextChange,
-    onUpdateFormValue,
-    onUpdateCommitDraft,
-    onResetCommitDraft,
-    onUpdateNotificationDraft,
-    onResetNotificationDraft,
-    onUpdateDesktopDraft,
-    onResetDesktopDraft,
-    onUpdateAgentModel,
-    onRemoveAgent,
-    onResetAgentDraft,
-    onOpenMcpServersModal,
-    onSetSkillsSourcePath,
-    onSetSkillsTargetPath,
-    onRunSkillsMigration,
-    onEnableBuiltinNotify,
-    onDisableBuiltinNotify,
-    onAddCustomPlugin,
-    onRemoveCustomPlugin,
-  } = props
+  } = settingsState
+
+  const { mcpServersDraft, mcpServersError } = mcpState
+  const { skillsSourcePath, skillsTargetPath, skillsBusy } = skillsState
 
   return (
     <div className="settings-panel">
@@ -115,7 +62,7 @@ export default function SettingsPanel(props: Props) {
               className="settings-search-input"
               placeholder="搜索设置项..."
               value={searchText}
-              onChange={(e) => onSearchTextChange(e.target.value)}
+              onChange={(e) => settingsActions.setSearchText(e.target.value)}
             />
           </div>
         </div>
@@ -177,7 +124,7 @@ export default function SettingsPanel(props: Props) {
                       <Text type="secondary" style={{ fontSize: 12, textAlign: 'right' }}>
                         {formatComplexValue(previewConfig.agent)} <InfoCircleOutlined />
                       </Text>
-                      <Button size="small" onClick={onResetAgentDraft}>
+                      <Button size="small" onClick={settingsActions.resetAgentDraft}>
                         重置
                       </Button>
                     </div>
@@ -210,7 +157,7 @@ export default function SettingsPanel(props: Props) {
                               !isBuiltin && (
                                 <Popconfirm
                                   title="确定删除此代理配置？"
-                                  onConfirm={() => onRemoveAgent(agentType)}
+                                  onConfirm={() => settingsActions.removeAgent(agentType)}
                                   okText="删除"
                                   cancelText="取消"
                                 >
@@ -229,7 +176,7 @@ export default function SettingsPanel(props: Props) {
                             <Input
                               style={{ width: '100%' }}
                               value={currentModel}
-                              onChange={(e) => onUpdateAgentModel(agentType, e.target.value)}
+                              onChange={(e) => settingsActions.updateAgentModel(agentType, e.target.value)}
                               placeholder="例如 anthropic/claude-haiku-4-20250514"
                               allowClear
                             />
@@ -248,72 +195,56 @@ export default function SettingsPanel(props: Props) {
             }
 
             if (def.kind === 'complex' && def.key === 'commit') {
-              const rowBorder = isLast ? 'none' : '1px solid #f0f0f0'
               return (
                 <div key={def.key}>
-                  <div
-                    className="setting-row"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '16px 20px',
-                      borderBottom: 'none',
-                      minHeight: 60,
-                    }}
-                  >
-                    <div style={{ flex: 1, paddingRight: 20 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <Text style={{ fontSize: 14, fontWeight: 500 }}>{def.title}</Text>
+                  <div className="setting-row" style={{ borderBottom: 'none' }}>
+                    <div className="setting-info">
+                      <div className="setting-header">
+                        <Text className="setting-key">{def.title}</Text>
                       </div>
-                      <Text type="secondary" style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>{def.description}</Text>
-                      <div style={{ marginTop: 2 }}>
-                        <Text type="secondary" style={{ fontSize: 10, opacity: 0.7 }}>Default: {def.defaultHint}</Text>
-                      </div>
+                      <Text className="setting-desc">{def.description}</Text>
+                      <div className="setting-default">Default: {def.defaultHint}</div>
                     </div>
-
-                    <div style={{ width: 240, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
-                      <Text type="secondary" style={{ fontSize: 12, textAlign: 'right' }}>
+                    <div className="setting-control" style={{ width: 240, gap: 8 }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
                         {formatComplexValue(previewConfig.commit)} <InfoCircleOutlined />
                       </Text>
-                      <Button size="small" onClick={onResetCommitDraft}>
-                        重置
-                      </Button>
+                      <Button size="small" onClick={settingsActions.resetCommitDraft}>重置</Button>
                     </div>
                   </div>
 
-                  <div style={{ borderBottom: rowBorder, padding: '0 20px 16px 20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingTop: 8 }}>
-                      <Text style={{ fontSize: 12 }}>language</Text>
+                  <div className="complex-expand" style={{ borderBottom: isLast ? 'none' : undefined }}>
+                    <div className="complex-field">
+                      <Text className="complex-field-label">language</Text>
                       <Input
-                        style={{ width: 240, textAlign: 'right' }}
+                        className="complex-field-control"
+                        style={{ textAlign: 'right' }}
                         placeholder="默认：en"
                         value={commitDraft.language ?? ''}
-                        onChange={(e) => onUpdateCommitDraft({ language: e.target.value })}
+                        onChange={(e) => settingsActions.updateCommitDraft({ language: e.target.value })}
                         allowClear
                       />
                     </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingTop: 8 }}>
-                      <Text style={{ fontSize: 12 }}>model</Text>
+                    <div className="complex-field">
+                      <Text className="complex-field-label">model</Text>
                       <Input
-                        style={{ width: 240, textAlign: 'right' }}
+                        className="complex-field-control"
+                        style={{ textAlign: 'right' }}
                         placeholder="provider_id/model_id（留空=全局默认）"
                         value={commitDraft.model ?? ''}
-                        onChange={(e) => onUpdateCommitDraft({ model: e.target.value })}
+                        onChange={(e) => settingsActions.updateCommitDraft({ model: e.target.value })}
                         allowClear
                       />
                     </div>
-
                     <div style={{ paddingTop: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                        <Text style={{ fontSize: 12 }}>systemPrompt</Text>
+                      <div className="complex-field">
+                        <Text className="complex-field-label">systemPrompt</Text>
                         <Text type="secondary" style={{ fontSize: 11 }}>追加到默认提示后面</Text>
                       </div>
                       <Input.TextArea
                         placeholder="留空=不追加"
                         value={commitDraft.systemPrompt ?? ''}
-                        onChange={(e) => onUpdateCommitDraft({ systemPrompt: e.target.value })}
+                        onChange={(e) => settingsActions.updateCommitDraft({ systemPrompt: e.target.value })}
                         autoSize={{ minRows: 3, maxRows: 10 }}
                       />
                     </div>
@@ -352,7 +283,7 @@ export default function SettingsPanel(props: Props) {
                   </div>
 
                   <div className="setting-control">
-                    <Button size="small" onClick={onOpenMcpServersModal}>
+                    <Button size="small" onClick={() => mcpActions.setMcpServersModalOpen(true)}>
                       编辑
                     </Button>
                   </div>
@@ -418,7 +349,7 @@ export default function SettingsPanel(props: Props) {
                           style={{ width: '100%' }}
                           placeholder="例如 /Users/you/.claude/skills"
                           value={skillsSourcePath}
-                          onChange={(e) => onSetSkillsSourcePath(e.target.value)}
+                          onChange={(e) => skillsActions.setSkillsSourcePath(e.target.value)}
                           allowClear
                         />
                       </div>
@@ -436,13 +367,13 @@ export default function SettingsPanel(props: Props) {
                           style={{ width: '100%' }}
                           placeholder="例如 /Users/you/.neovate/skills"
                           value={skillsTargetPath}
-                          onChange={(e) => onSetSkillsTargetPath(e.target.value)}
+                          onChange={(e) => skillsActions.setSkillsTargetPath(e.target.value)}
                           allowClear
                         />
                       </div>
 
                       <div style={{ paddingTop: 10 }}>
-                        <Button size="small" onClick={() => void onRunSkillsMigration()} loading={skillsBusy}>
+                        <Button size="small" onClick={() => void skillsActions.runSkillsMigration()} loading={skillsBusy}>
                           一键迁移
                         </Button>
                       </div>
@@ -489,7 +420,7 @@ export default function SettingsPanel(props: Props) {
                     </div>
 
                     <div style={{ width: 240, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
-                      <Button size="small" onClick={() => void onAddCustomPlugin()}>
+                      <Button size="small" onClick={() => void settingsActions.addCustomPlugin()}>
                         添加插件
                       </Button>
                     </div>
@@ -524,8 +455,8 @@ export default function SettingsPanel(props: Props) {
                           checked={builtinNotifyEnabled}
                           disabled={builtinNotifyBusy}
                           onChange={(checked) => {
-                            if (checked) void onEnableBuiltinNotify()
-                            else onDisableBuiltinNotify()
+                            if (checked) void settingsActions.enableBuiltinNotify()
+                            else settingsActions.disableBuiltinNotify()
                           }}
                         />
                       </div>
@@ -543,7 +474,7 @@ export default function SettingsPanel(props: Props) {
                                 </div>
                                 <Popconfirm
                                   title="确定移除此插件？"
-                                  onConfirm={() => onRemoveCustomPlugin(pluginPath)}
+                                  onConfirm={() => settingsActions.removeCustomPlugin(pluginPath)}
                                   okText="移除"
                                   cancelText="取消"
                                 >
@@ -598,7 +529,7 @@ export default function SettingsPanel(props: Props) {
                       <Text type="secondary" style={{ fontSize: 12, textAlign: 'right' }}>
                         {formatComplexValue(previewConfig.notification)} <InfoCircleOutlined />
                       </Text>
-                      <Button size="small" onClick={onResetNotificationDraft}>重置</Button>
+                      <Button size="small" onClick={settingsActions.resetNotificationDraft}>重置</Button>
                     </div>
                   </div>
 
@@ -619,14 +550,14 @@ export default function SettingsPanel(props: Props) {
                         onChange={(v) => {
                           const mode = v as NotificationMode
                           if (mode === 'webhook') {
-                            onUpdateNotificationDraft({ mode, webhookUrl: notificationDraft.webhookUrl, soundName: '' })
+                            settingsActions.updateNotificationDraft({ mode, webhookUrl: notificationDraft.webhookUrl, soundName: '' })
                             return
                           }
                           if (mode === 'sound') {
-                            onUpdateNotificationDraft({ mode, soundName: notificationDraft.soundName, webhookUrl: '' })
+                            settingsActions.updateNotificationDraft({ mode, soundName: notificationDraft.soundName, webhookUrl: '' })
                             return
                           }
-                          onUpdateNotificationDraft({ mode, soundName: '', webhookUrl: '' })
+                          settingsActions.updateNotificationDraft({ mode, soundName: '', webhookUrl: '' })
                         }}
                       >
                         <Option value="off">禁用（默认）</Option>
@@ -660,7 +591,7 @@ export default function SettingsPanel(props: Props) {
                             value={isKnownMacSound ? pickedSound : undefined}
                             placeholder="选择一个（可选）"
                             style={{ width: 240 }}
-                            onChange={(v) => onUpdateNotificationDraft({ soundName: String(v) })}
+                            onChange={(v) => settingsActions.updateNotificationDraft({ soundName: String(v) })}
                             allowClear
                           >
                             {MACOS_SOUNDS.map((s) => (
@@ -685,7 +616,7 @@ export default function SettingsPanel(props: Props) {
                             style={{ width: 240, textAlign: 'right' }}
                             placeholder='例如 "Glass" / "Ping"'
                             value={notificationDraft.soundName}
-                            onChange={(e) => onUpdateNotificationDraft({ soundName: e.target.value })}
+                            onChange={(e) => settingsActions.updateNotificationDraft({ soundName: e.target.value })}
                             allowClear
                           />
                         </div>
@@ -714,7 +645,7 @@ export default function SettingsPanel(props: Props) {
                             style={{ width: 240, textAlign: 'right' }}
                             placeholder="https://example.com/hook?cwd={{cwd}}&name={{name}}"
                             value={notificationDraft.webhookUrl}
-                            onChange={(e) => onUpdateNotificationDraft({ webhookUrl: e.target.value })}
+                            onChange={(e) => settingsActions.updateNotificationDraft({ webhookUrl: e.target.value })}
                             allowClear
                           />
                         </div>
@@ -779,7 +710,7 @@ export default function SettingsPanel(props: Props) {
                       <Text type="secondary" style={{ fontSize: 12, textAlign: 'right' }}>
                         {formatComplexValue(previewConfig.desktop)} <InfoCircleOutlined />
                       </Text>
-                      <Button size="small" onClick={onResetDesktopDraft}>重置</Button>
+                      <Button size="small" onClick={settingsActions.resetDesktopDraft}>重置</Button>
                     </div>
                   </div>
 
@@ -797,7 +728,7 @@ export default function SettingsPanel(props: Props) {
                       <Select
                         value={themeValue}
                         style={{ width: 240 }}
-                        onChange={(v) => onUpdateDesktopDraft({ theme: v === 'default' ? undefined : (v as DesktopDraft['theme']) })}
+                        onChange={(v) => settingsActions.updateDesktopDraft({ theme: v === 'default' ? undefined : (v as DesktopDraft['theme']) })}
                       >
                         <Option value="default">Default</Option>
                         <Option value="light">light</Option>
@@ -820,7 +751,7 @@ export default function SettingsPanel(props: Props) {
                         value={sendValue}
                         style={{ width: 240 }}
                         onChange={(v) =>
-                          onUpdateDesktopDraft({ sendMessageWith: v === 'default' ? undefined : (v as DesktopDraft['sendMessageWith']) })
+                          settingsActions.updateDesktopDraft({ sendMessageWith: v === 'default' ? undefined : (v as DesktopDraft['sendMessageWith']) })
                         }
                       >
                         <Option value="default">Default</Option>
@@ -843,7 +774,7 @@ export default function SettingsPanel(props: Props) {
                         style={{ width: 240, textAlign: 'right' }}
                         placeholder="默认字体"
                         value={desktopDraft.terminalFont ?? ''}
-                        onChange={(e) => onUpdateDesktopDraft({ terminalFont: e.target.value === '' ? undefined : e.target.value })}
+                        onChange={(e) => settingsActions.updateDesktopDraft({ terminalFont: e.target.value === '' ? undefined : e.target.value })}
                         allowClear
                       />
                     </div>
@@ -865,11 +796,11 @@ export default function SettingsPanel(props: Props) {
                         onChange={(e) => {
                           const raw = e.target.value
                           if (raw.trim() === '') {
-                            onUpdateDesktopDraft({ terminalFontSize: undefined })
+                            settingsActions.updateDesktopDraft({ terminalFontSize: undefined })
                             return
                           }
                           const num = Number(raw)
-                          if (!Number.isNaN(num)) onUpdateDesktopDraft({ terminalFontSize: num })
+                          if (!Number.isNaN(num)) settingsActions.updateDesktopDraft({ terminalFontSize: num })
                         }}
                         allowClear
                       />
@@ -901,7 +832,7 @@ export default function SettingsPanel(props: Props) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Switch
                         checked={value === true}
-                        onChange={(checked) => onUpdateFormValue(def.key, checked)}
+                        onChange={(checked) => settingsActions.updateFormValue(def.key, checked)}
                       />
                       {value === undefined && <Tag color="default" style={{ margin: 0 }}>Default</Tag>}
                     </div>
@@ -912,7 +843,7 @@ export default function SettingsPanel(props: Props) {
                       value={value === undefined ? 'default' : String(value)}
                       style={{ width: 140 }}
                       onChange={(v) => {
-                        onUpdateFormValue(def.key, v === 'default' ? undefined : v)
+                        settingsActions.updateFormValue(def.key, v === 'default' ? undefined : v)
                       }}
                     >
                       <Option value="default">Default</Option>
@@ -931,8 +862,8 @@ export default function SettingsPanel(props: Props) {
                       value={value === undefined ? '' : String(value)}
                       onChange={(e) => {
                         const raw = e.target.value
-                        if (raw.trim() === '') onUpdateFormValue(def.key, undefined)
-                        else if (!Number.isNaN(Number(raw))) onUpdateFormValue(def.key, Number(raw))
+                        if (raw.trim() === '') settingsActions.updateFormValue(def.key, undefined)
+                        else if (!Number.isNaN(Number(raw))) settingsActions.updateFormValue(def.key, Number(raw))
                       }}
                     />
                   )}
@@ -943,7 +874,7 @@ export default function SettingsPanel(props: Props) {
                       value={value === undefined ? '' : String(value)}
                       onChange={(e) => {
                         const raw = e.target.value
-                        onUpdateFormValue(def.key, raw === '' ? undefined : raw)
+                        settingsActions.updateFormValue(def.key, raw === '' ? undefined : raw)
                       }}
                       autoSize={{ minRows: 3, maxRows: 10 }}
                     />
@@ -956,7 +887,7 @@ export default function SettingsPanel(props: Props) {
                       value={value === undefined ? '' : String(value)}
                       onChange={(e) => {
                         const raw = e.target.value
-                        onUpdateFormValue(def.key, raw === '' ? undefined : raw)
+                        settingsActions.updateFormValue(def.key, raw === '' ? undefined : raw)
                       }}
                     />
                   )}

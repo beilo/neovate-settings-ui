@@ -23,7 +23,9 @@ pub struct WriteConfigResponse {
   pub backup_path: Option<String>,
 }
 
+// 为什么：前端使用 camelCase 字段名，这里统一序列化风格以保持一致。
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SkillsMigrationItem {
   pub name: String,
   pub source: String,
@@ -33,12 +35,14 @@ pub struct SkillsMigrationItem {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SkillsMigrationPlan {
   pub items: Vec<SkillsMigrationItem>,
   pub conflict_count: usize,
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SkillsMigrationResult {
   pub copied: usize,
   pub skipped: usize,
